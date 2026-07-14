@@ -83,9 +83,29 @@ function showWaitStep(email, pw) {
   pendingPw = pw;
   $('#otpEmail').textContent = email;
   $('#otpError').textContent = '';
+  $('#otpCode').value = '';
   $('#authStep1').classList.add('hidden');
   $('#authStep2').classList.remove('hidden');
+  $('#otpCode').focus();
   startWaitPolling();
+}
+
+async function handleOtp(e) {
+  e.preventDefault();
+  const token = $('#otpCode').value.trim();
+  const err = $('#otpError');
+  err.textContent = '';
+  const { data, error } = await sb.auth.verifyOtp({ email: pendingEmail, token, type: 'signup' });
+  if (error) {
+    // 재전송 코드 등은 타입이 다를 수 있어 email 타입으로 한 번 더 시도
+    const retry = await sb.auth.verifyOtp({ email: pendingEmail, token, type: 'email' });
+    if (retry.error) { err.textContent = authErrorKo(error.message); return; }
+    backToStep1();
+    enterMain(retry.data.session.user);
+    return;
+  }
+  backToStep1();
+  enterMain(data.session.user);
 }
 
 function backToStep1() {
@@ -484,6 +504,7 @@ async function init() {
 
   document.querySelectorAll('.auth-tab').forEach((t) => t.addEventListener('click', () => setAuthMode(t.dataset.mode)));
   $('#authForm').addEventListener('submit', handleAuth);
+  $('#otpForm').addEventListener('submit', handleOtp);
   $('#otpResend').addEventListener('click', handleResend);
   $('#otpBack').addEventListener('click', backToStep1);
   $('#logoutBtn').addEventListener('click', logout);

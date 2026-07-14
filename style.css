@@ -698,6 +698,15 @@ body {
 .otp-sub b { color: var(--hot-dark); }
 .otp-hint { font-size: 11px; color: var(--hot); }
 
+.otp-input {
+  margin-top: 14px;
+  font-family: 'DungGeunMo', sans-serif;
+  font-size: 30px;
+  text-align: center;
+  letter-spacing: 12px;
+}
+#otpForm .btn-big { margin-top: 14px; }
+
 .otp-wait {
   display: flex; align-items: center; justify-content: center; gap: 12px;
   margin-top: 18px;
