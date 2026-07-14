@@ -75,19 +75,42 @@ function setAuthMode(mode) {
   $('#authError').textContent = '';
 }
 
-function showOtpStep(email) {
+let pendingPw = '';
+let waitTimer = null;
+
+function showWaitStep(email, pw) {
   pendingEmail = email;
+  pendingPw = pw;
   $('#otpEmail').textContent = email;
-  $('#otpCode').value = '';
   $('#otpError').textContent = '';
   $('#authStep1').classList.add('hidden');
   $('#authStep2').classList.remove('hidden');
-  $('#otpCode').focus();
+  startWaitPolling();
 }
 
 function backToStep1() {
+  stopWaitPolling();
   $('#authStep2').classList.add('hidden');
   $('#authStep1').classList.remove('hidden');
+}
+
+/* 메일의 인증 링크를 누르면 자동으로 로그인되도록 주기적으로 시도 */
+function startWaitPolling() {
+  stopWaitPolling();
+  const startedAt = Date.now();
+  waitTimer = setInterval(async () => {
+    if (Date.now() - startedAt > 10 * 60 * 1000) { stopWaitPolling(); return; }
+    const { data, error } = await sb.auth.signInWithPassword({ email: pendingEmail, password: pendingPw });
+    if (!error && data.session) {
+      stopWaitPolling();
+      backToStep1();
+      enterMain(data.session.user);
+    }
+  }, 7000);
+}
+
+function stopWaitPolling() {
+  if (waitTimer) { clearInterval(waitTimer); waitTimer = null; }
 }
 
 async function handleAuth(e) {
@@ -108,13 +131,13 @@ async function handleAuth(e) {
         return;
       }
       if (data.session) { enterMain(data.session.user); return; } // 이메일 인증 꺼진 경우
-      showOtpStep(email);
+      showWaitStep(email, pw);
     } else {
       const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
       if (error) {
         if (String(error.message).includes('Email not confirmed')) {
           await sb.auth.resend({ type: 'signup', email });
-          showOtpStep(email);
+          showWaitStep(email, pw);
           return;
         }
         err.textContent = authErrorKo(error.message);
@@ -125,24 +148,6 @@ async function handleAuth(e) {
   } finally {
     $('#authSubmit').disabled = false;
   }
-}
-
-async function handleOtp(e) {
-  e.preventDefault();
-  const token = $('#otpCode').value.trim();
-  const err = $('#otpError');
-  err.textContent = '';
-  const { data, error } = await sb.auth.verifyOtp({ email: pendingEmail, token, type: 'signup' });
-  if (error) {
-    // 재전송된 코드는 type이 signup이 아닐 수 있어 email 타입으로 한 번 더 시도
-    const retry = await sb.auth.verifyOtp({ email: pendingEmail, token, type: 'email' });
-    if (retry.error) { err.textContent = authErrorKo(error.message); return; }
-    backToStep1();
-    enterMain(retry.data.session.user);
-    return;
-  }
-  backToStep1();
-  enterMain(data.session.user);
 }
 
 async function handleResend() {
@@ -468,9 +473,17 @@ async function init() {
   }
   sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
 
+  // 메일 인증 링크로 이 탭이 열린 경우 자동 로그인 처리
+  sb.auth.onAuthStateChange((event, sess) => {
+    if (event === 'SIGNED_IN' && sess && !me) {
+      stopWaitPolling();
+      backToStep1();
+      enterMain(sess.user);
+    }
+  });
+
   document.querySelectorAll('.auth-tab').forEach((t) => t.addEventListener('click', () => setAuthMode(t.dataset.mode)));
   $('#authForm').addEventListener('submit', handleAuth);
-  $('#otpForm').addEventListener('submit', handleOtp);
   $('#otpResend').addEventListener('click', handleResend);
   $('#otpBack').addEventListener('click', backToStep1);
   $('#logoutBtn').addEventListener('click', logout);
