@@ -29,9 +29,9 @@ body {
   color: var(--text);
   background-color: var(--pink-bg);
   background-image:
-    radial-gradient(circle, rgba(255,255,255,.35) 1.5px, transparent 1.5px),
-    radial-gradient(circle, rgba(212,15,119,.18) 1.5px, transparent 1.5px);
-  background-size: 22px 22px, 22px 22px;
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 24 24'%3E%3Cpath d='M12 21s-8-5.5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 5.5-8 11-8 11z' fill='%23ffffff' fill-opacity='.28'/%3E%3C/svg%3E"),
+    radial-gradient(circle, rgba(212,15,119,.15) 1.5px, transparent 1.5px);
+  background-size: 56px 56px, 22px 22px;
   background-position: 0 0, 11px 11px;
   image-rendering: pixelated;
 }
@@ -682,6 +682,104 @@ body {
   box-shadow: 0 4px 0 var(--shadow);
 }
 .btn-danger:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--shadow); }
+
+/* ───────── 이메일 인증번호 ───────── */
+
+.otp-head { text-align: center; padding: 10px 0 4px; }
+.otp-icon { font-size: 38px; display: block; animation: bounce 1.6s ease-in-out infinite; }
+.otp-title {
+  font-family: 'DungGeunMo', sans-serif;
+  font-size: 21px;
+  color: var(--hot-dark);
+  margin-top: 8px;
+  text-shadow: 1px 1px 0 #fff;
+}
+.otp-sub { font-size: 13px; color: var(--text); margin-top: 10px; line-height: 1.7; }
+.otp-sub b { color: var(--hot-dark); }
+.otp-hint { font-size: 11px; color: var(--hot); }
+
+.otp-input {
+  margin-top: 14px;
+  font-family: 'DungGeunMo', sans-serif;
+  font-size: 30px;
+  text-align: center;
+  letter-spacing: 12px;
+}
+#otpForm .btn-big { margin-top: 14px; }
+.otp-actions {
+  display: flex; justify-content: center; gap: 10px;
+  margin-top: 14px;
+}
+
+.setup-notice {
+  text-align: center;
+  font-size: 15px;
+  line-height: 2;
+  color: var(--hot-dark);
+  padding: 26px 0;
+}
+
+/* ───────── 내 기록 / 피드 탭 ───────── */
+
+.view-tabs {
+  max-width: 720px;
+  margin: 12px auto 0;
+  display: flex; gap: 10px;
+}
+.view-tab {
+  flex: 1;
+  font-family: 'DungGeunMo', sans-serif;
+  font-size: 16px;
+  padding: 9px 0;
+  color: var(--hot-dark);
+  background: var(--pink-pale);
+  border: 3px solid var(--deep);
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 var(--shadow);
+}
+.view-tab.active {
+  color: var(--hot-dark);
+  background: var(--yellow);
+}
+.view-tab:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--shadow); }
+
+/* ───────── 공개 설정 ───────── */
+
+.vis-picker { display: flex; gap: 8px; }
+.vis-btn {
+  flex: 1;
+  font-family: 'Galmuri11', sans-serif;
+  font-size: 14px;
+  padding: 10px 0;
+  color: var(--hot-dark);
+  background: var(--pink-pale);
+  border: 3px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 var(--shadow);
+}
+.vis-btn.on {
+  color: #fff;
+  background: var(--hot);
+  text-shadow: 1px 1px 0 var(--deep);
+}
+
+.record-vis-badge {
+  font-size: 11px;
+  color: var(--hot-dark);
+  background: var(--pink-pale);
+  border: 2px solid var(--border);
+  border-radius: 7px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+.record-vis-badge.vis-public {
+  color: #fff;
+  background: var(--hot);
+  border-color: var(--deep);
+}
+.record-owner { color: var(--hot-dark); }
 
 /* ───────── 모바일 ───────── */
 @media (max-width: 520px) {

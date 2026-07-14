@@ -34,18 +34,44 @@
     </div>
 
     <div class="auth-box">
-      <div class="auth-tabs">
-        <button type="button" class="auth-tab active" data-mode="login">로그인</button>
-        <button type="button" class="auth-tab" data-mode="signup">회원가입</button>
+      <!-- 이메일/비밀번호 입력 -->
+      <div id="authStep1">
+        <div class="auth-tabs">
+          <button type="button" class="auth-tab active" data-mode="login">로그인</button>
+          <button type="button" class="auth-tab" data-mode="signup">회원가입</button>
+        </div>
+        <form id="authForm" autocomplete="off">
+          <label class="pixel-label" for="authEmail">✉ 이메일</label>
+          <input type="email" id="authEmail" class="pixel-input" placeholder="email@example.com" required>
+          <label class="pixel-label" for="authPw">🔑 비밀번호</label>
+          <input type="password" id="authPw" class="pixel-input" placeholder="비밀번호 (6자 이상)" minlength="6" required>
+          <p id="authError" class="auth-error"></p>
+          <button type="submit" id="authSubmit" class="btn-big">로그인 ♥</button>
+        </form>
       </div>
-      <form id="authForm" autocomplete="off">
-        <label class="pixel-label" for="authEmail">✉ 이메일</label>
-        <input type="email" id="authEmail" class="pixel-input" placeholder="email@example.com" required>
-        <label class="pixel-label" for="authPw">🔑 비밀번호</label>
-        <input type="password" id="authPw" class="pixel-input" placeholder="비밀번호" minlength="4" required>
-        <p id="authError" class="auth-error"></p>
-        <button type="submit" id="authSubmit" class="btn-big">로그인 ♥</button>
-      </form>
+
+      <!-- 이메일 인증번호 입력 -->
+      <div id="authStep2" class="hidden">
+        <div class="otp-head">
+          <span class="otp-icon">💌</span>
+          <p class="otp-title">인증번호를 보냈어요!</p>
+          <p class="otp-sub"><b id="otpEmail"></b><br>메일함에서 6자리 숫자를 확인해 주세요<br><span class="otp-hint">(안 보이면 스팸함도 확인!)</span></p>
+        </div>
+        <form id="otpForm" autocomplete="off">
+          <input type="text" id="otpCode" class="pixel-input otp-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="······" required>
+          <p id="otpError" class="auth-error"></p>
+          <button type="submit" class="btn-big">인증하기 ♥</button>
+        </form>
+        <div class="otp-actions">
+          <button type="button" id="otpResend" class="btn-tiny">인증번호 다시 보내기</button>
+          <button type="button" id="otpBack" class="btn-tiny">← 돌아가기</button>
+        </div>
+      </div>
+
+      <!-- 서버 설정 전 안내 -->
+      <div id="authSetup" class="hidden">
+        <p class="setup-notice">🛠 서버 준비 중이에요!<br>조금만 기다려 주세요 (｡•́︿•̀｡)</p>
+      </div>
     </div>
 
     <p class="auth-footer">✧ﾟ･: *ヽ(◕ヮ◕ヽ) 맛있는 기록을 남겨요 (ﾉ◕ヮ◕)ﾉ*:･ﾟ✧</p>
@@ -71,28 +97,45 @@
       <div class="hp-bar"><div class="hp-fill"></div></div>
       <span class="hp-hearts">♥ ♥ ♥</span>
     </div>
+    <nav class="view-tabs">
+      <button type="button" class="view-tab active" data-view="mine">🏠 내 기록</button>
+      <button type="button" class="view-tab" data-view="feed">💌 피드</button>
+    </nav>
   </header>
 
   <main class="content">
-    <!-- BEST 3 -->
-    <section class="best-section">
-      <div class="section-title-bar">
-        <span class="section-title-icon">👑</span>
-        <h2 class="section-title">BEST 3</h2>
-        <span class="section-title-deco">☆ 최고의 요리 ☆</span>
-      </div>
-      <div id="bestGrid" class="best-grid"></div>
-    </section>
+    <!-- 내 기록 화면 -->
+    <div id="mineView">
+      <section class="best-section">
+        <div class="section-title-bar">
+          <span class="section-title-icon">👑</span>
+          <h2 class="section-title">MY BEST 3</h2>
+          <span class="section-title-deco">☆ 최고의 요리 ☆</span>
+        </div>
+        <div id="bestGrid" class="best-grid"></div>
+      </section>
 
-    <!-- 기록 리스트 -->
-    <section class="record-section">
-      <div class="section-title-bar record-title-bar">
-        <span class="section-title-icon">🍳</span>
-        <h2 class="section-title">요리 기록</h2>
-        <span id="recordCount" class="record-count">0개</span>
-      </div>
-      <div id="recordList" class="record-list"></div>
-    </section>
+      <section class="record-section">
+        <div class="section-title-bar record-title-bar">
+          <span class="section-title-icon">🍳</span>
+          <h2 class="section-title">요리 기록</h2>
+          <span id="recordCount" class="record-count">0개</span>
+        </div>
+        <div id="recordList" class="record-list"></div>
+      </section>
+    </div>
+
+    <!-- 피드 화면 -->
+    <div id="feedView" class="hidden">
+      <section>
+        <div class="section-title-bar">
+          <span class="section-title-icon">💌</span>
+          <h2 class="section-title">모두의 피드</h2>
+          <span class="section-title-deco">✦ 전체공개 자랑글 ✦</span>
+        </div>
+        <div id="feedList" class="record-list"></div>
+      </section>
+    </div>
   </main>
 
   <button type="button" id="addBtn" class="fab" title="새 요리 기록 추가">＋</button>
@@ -134,9 +177,15 @@
         <button type="button" data-v="1">★</button><button type="button" data-v="2">★</button><button type="button" data-v="3">★</button><button type="button" data-v="4">★</button><button type="button" data-v="5">★</button>
       </div>
 
+      <label class="pixel-label">👀 공개 설정</label>
+      <div id="visPicker" class="vis-picker">
+        <button type="button" data-vis="private" class="vis-btn on">🔒 나만보기</button>
+        <button type="button" data-vis="public" class="vis-btn">💖 전체공개</button>
+      </div>
+
       <div class="modal-actions">
         <button type="button" class="btn-gray" data-close="recordModal">취소</button>
-        <button type="submit" class="btn-big btn-save">저장하기 ♥</button>
+        <button type="submit" id="recordSaveBtn" class="btn-big btn-save">저장하기 ♥</button>
       </div>
     </form>
   </div>
@@ -154,6 +203,8 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
