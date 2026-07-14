@@ -12,9 +12,15 @@ let me = null;          // { id, email }
 let myRecords = [];
 let feedRecords = [];
 let coupleRecords = [];
-let partner = null;     // { id, email } | null
+let partner = null;     // { id } | null
 let myHearts = new Set(); // 내가 하트 누른 record id
+let nicks = new Map();  // user id -> nickname (공개 표시명)
+let myNick = '';
 let currentView = 'mine';
+
+function nick(id) {
+  return nicks.get(id) || '익명 셰프';
+}
 
 /* ───────── 유틸 ───────── */
 
@@ -188,12 +194,19 @@ async function logout() {
 
 /* ───────── 데이터 ───────── */
 
-const RECORD_COLS = '*, reactions(count), comments(count)';
+// 이메일 컬럼(owner_email)은 일부러 조회하지 않음 → 클라이언트에 노출 안 됨
+const RECORD_COLS = 'id,owner,title,date,descr,rating,photos,is_public,best_at,created_at, reactions(count), comments(count)';
 
 function socialCounts(r) {
   r._hearts = r.reactions?.[0]?.count || 0;
   r._comments = r.comments?.[0]?.count || 0;
   return r;
+}
+
+async function loadNicks() {
+  const { data } = await sb.from('profiles').select('id,nickname');
+  nicks = new Map((data || []).map((p) => [p.id, p.nickname]));
+  myNick = nicks.get(me.id) || '';
 }
 
 async function loadMine() {
@@ -216,12 +229,12 @@ async function loadFeed() {
 }
 
 async function loadCouple() {
-  const { data, error } = await sb.from('couples').select('*')
+  const { data, error } = await sb.from('couples').select('id,a,b')
     .or(`a.eq.${me.id},b.eq.${me.id}`)
     .not('b', 'is', null)
     .maybeSingle();
   if (error || !data) { partner = null; coupleRecords = []; return; }
-  partner = data.a === me.id ? { id: data.b, email: data.b_email } : { id: data.a, email: data.a_email };
+  partner = { id: data.a === me.id ? data.b : data.a };
   const res = await sb.from('records').select(RECORD_COLS)
     .in('owner', [me.id, partner.id])
     .order('date', { ascending: false })
@@ -235,18 +248,50 @@ async function loadMyHearts() {
 }
 
 async function refresh() {
+  await loadNicks();
   await Promise.all([loadMine(), loadFeed(), loadCouple(), loadMyHearts()]);
   render();
 }
 
 /* ───────── 메인 렌더링 ───────── */
 
-function enterMain(user) {
+async function enterMain(user) {
   me = { id: user.id, email: user.email };
   $('#authScreen').classList.add('hidden');
   $('#mainScreen').classList.remove('hidden');
+
+  // 닉네임이 없으면 먼저 설정하도록 안내
+  const { data } = await sb.from('profiles').select('nickname').eq('id', me.id).maybeSingle();
+  if (!data) { openNickModal(true); return; } // 저장 후 refresh가 이어짐
+  myNick = data.nickname;
+  refresh();
+}
+
+function renderUserChip() {
   const isAdmin = me.email === ADMIN_EMAIL;
-  $('#userChip').innerHTML = (isAdmin ? '<span class="admin-mark">👑 관리자</span> · ' : '♥ ') + escapeHtml(me.email);
+  $('#userChip').innerHTML = (isAdmin ? '<span class="admin-mark">👑 관리자</span> · ' : '') + '♥ ' + escapeHtml(myNick || '셰프') + ' <span class="nick-edit">✏️</span>';
+  $('#userChip').onclick = () => openNickModal(false);
+}
+
+/* ───────── 닉네임 설정 ───────── */
+
+function openNickModal(first) {
+  $('#nickModalTitle').textContent = first ? '닉네임을 정해주세요 ♥' : '닉네임 바꾸기 ♥';
+  $('#nickInput').value = myNick || '';
+  $('#nickError').textContent = '';
+  $('#nickCancel').classList.toggle('hidden', first); // 최초 설정 때는 취소 불가
+  $('#nickModal').classList.remove('hidden');
+  $('#nickInput').focus();
+}
+
+async function handleNickSave(e) {
+  e.preventDefault();
+  const nickname = $('#nickInput').value.trim();
+  if (!nickname) { $('#nickError').textContent = '닉네임을 입력해 주세요!'; return; }
+  const { error } = await sb.from('profiles').upsert({ id: me.id, nickname });
+  if (error) { $('#nickError').textContent = '저장에 실패했어요 (>_<)'; return; }
+  myNick = nickname;
+  $('#nickModal').classList.add('hidden');
   refresh();
 }
 
@@ -259,6 +304,7 @@ function setView(view) {
 }
 
 function render() {
+  renderUserChip();
   renderBest();
   renderList();
   renderCouple();
@@ -310,7 +356,7 @@ function recordCardEl(r, showOwner) {
         ${r.best_at ? '<span class="record-best-badge">👑 BEST</span>' : ''}
         ${visBadge}
       </div>
-      <div class="record-date">📅 ${fmtDate(r.date)}${showOwner ? ` · <span class="record-owner">${escapeHtml(r.owner_email)}</span>` : ''}</div>
+      <div class="record-date">📅 ${fmtDate(r.date)}${showOwner ? ` · <span class="record-owner">${escapeHtml(nick(r.owner))}</span>` : ''}</div>
       <div class="record-desc">${escapeHtml(r.descr)}</div>
       <div class="record-foot">
         <span class="record-stars">${starHtml(r.rating, '')}</span>
@@ -379,11 +425,11 @@ function renderCouple() {
 
   panel.innerHTML = `
     <div class="couple-box couple-linked">
-      <p class="couple-msg">💑 <b>${escapeHtml(me.email)}</b> ♥ <b>${escapeHtml(partner.email)}</b><br>둘의 기록을 모두 볼 수 있어요! (🔒 나만보기 포함)</p>
+      <p class="couple-msg">💑 <b>${escapeHtml(nick(me.id))}</b> ♥ <b>${escapeHtml(nick(partner.id))}</b><br>둘의 기록을 모두 볼 수 있어요! (🔒 나만보기 포함)</p>
       <button type="button" id="coupleUnlinkBtn" class="btn-tiny">연동 해제</button>
     </div>`;
   $('#coupleUnlinkBtn').addEventListener('click', async () => {
-    if (!confirm(`${partner.email} 님과의 연동을 해제할까요?`)) return;
+    if (!confirm(`${nick(partner.id)} 님과의 연동을 해제할까요?`)) return;
     const { error } = await sb.rpc('unlink_couple');
     if (error) { alert('해제에 실패했어요 (>_<)'); return; }
     refresh();
@@ -564,7 +610,7 @@ function openDetail(r) {
       ${starHtml(r.rating, 'detail-stars')}
     </div>
     ${r.descr ? `<div class="detail-desc">${escapeHtml(r.descr)}</div>` : ''}
-    <div class="detail-owner">작성: ${escapeHtml(r.owner_email)}${r.best_at ? ' · 👑 BEST' : ''} · ${r.is_public ? '💖 전체공개' : '🔒 나만보기'}</div>
+    <div class="detail-owner">작성: ${escapeHtml(nick(r.owner))}${r.best_at ? ' · 👑 BEST' : ''} · ${r.is_public ? '💖 전체공개' : '🔒 나만보기'}</div>
     <div class="detail-social">
       <button type="button" class="heart-btn heart-btn-big ${myHearts.has(r.id) ? 'on' : ''}" id="detailHeartBtn">♥ <b>${r._hearts || 0}</b></button>
     </div>
@@ -603,7 +649,7 @@ function openDetail(r) {
 
 async function loadComments(r) {
   const box = $('#commentList');
-  const { data, error } = await sb.from('comments').select('*')
+  const { data, error } = await sb.from('comments').select('id,record_id,author,content,created_at')
     .eq('record_id', r.id)
     .order('created_at', { ascending: true });
   if (!box || error) { if (box) box.innerHTML = '<span class="comment-loading">댓글을 불러오지 못했어요</span>'; return; }
@@ -618,7 +664,7 @@ async function loadComments(r) {
     el.className = 'comment-item';
     el.innerHTML = `
       <div class="comment-head">
-        <span class="comment-author">${escapeHtml(c.author_email)}</span>
+        <span class="comment-author">${escapeHtml(nick(c.author))}</span>
         <span class="comment-date">${fmtDate(c.created_at)}</span>
         ${canDel ? '<button type="button" class="comment-del">✕</button>' : ''}
       </div>
@@ -690,6 +736,8 @@ async function init() {
   $('#authForm').addEventListener('submit', handleAuth);
   $('#otpForm').addEventListener('submit', handleOtp);
   $('#otpResend').addEventListener('click', handleResend);
+  $('#nickForm').addEventListener('submit', handleNickSave);
+  $('#nickCancel').addEventListener('click', () => $('#nickModal').classList.add('hidden'));
   $('#otpBack').addEventListener('click', backToStep1);
   $('#logoutBtn').addEventListener('click', logout);
   $('#addBtn').addEventListener('click', () => openRecordModal(null));

@@ -872,6 +872,16 @@ body {
 .comment-form .pixel-input { flex: 1; padding: 8px 10px; font-size: 13px; }
 .comment-form .btn-best { padding: 8px 14px; font-size: 13px; white-space: nowrap; }
 
+/* ───────── 닉네임 설정 ───────── */
+
+.user-chip { cursor: pointer; }
+.nick-edit { font-size: 10px; opacity: .8; }
+
+.nick-head { text-align: center; padding: 8px 0 4px; }
+.nick-icon { font-size: 38px; display: block; animation: bounce 1.6s ease-in-out infinite; }
+.nick-msg { font-size: 13px; color: var(--text); margin-top: 8px; line-height: 1.7; }
+.nick-msg b { color: var(--hot-dark); }
+
 /* ───────── 커플 연동 ───────── */
 
 .couple-box {

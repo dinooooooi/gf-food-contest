@@ -165,6 +165,29 @@
   </footer>
 </div>
 
+<!-- ═══════════ 닉네임 설정 모달 ═══════════ -->
+<div id="nickModal" class="modal-overlay hidden">
+  <div class="modal pixel-window">
+    <div class="window-title-bar">
+      <span class="window-dots"><i></i><i></i><i></i></span>
+      <span id="nickModalTitle">닉네임을 정해주세요 ♥</span>
+    </div>
+    <form id="nickForm" class="modal-body">
+      <div class="nick-head">
+        <span class="nick-icon">🎀</span>
+        <p class="nick-msg">피드와 댓글에는 <b>닉네임</b>만 보여요!<br>이메일은 아무에게도 보이지 않아요 🔒</p>
+      </div>
+      <label class="pixel-label" for="nickInput">✏️ 닉네임 (최대 20자)</label>
+      <input type="text" id="nickInput" class="pixel-input" placeholder="예) 요리왕민지" maxlength="20" required>
+      <p id="nickError" class="auth-error"></p>
+      <div class="modal-actions">
+        <button type="button" id="nickCancel" class="btn-gray hidden">취소</button>
+        <button type="submit" class="btn-big btn-save">저장하기 ♥</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- ═══════════ 기록 추가/수정 모달 ═══════════ -->
 <div id="recordModal" class="modal-overlay hidden">
   <div class="modal pixel-window">
