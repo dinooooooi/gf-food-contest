@@ -58,7 +58,7 @@
           <p class="otp-sub"><b id="otpEmail"></b><br>메일로 온 <b>6자리 인증번호</b>를 입력해 주세요<br><span class="otp-hint">(안 보이면 스팸함도 확인!)</span></p>
         </div>
         <form id="otpForm" autocomplete="off">
-          <input type="text" id="otpCode" class="pixel-input otp-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="······" required>
+          <input type="text" id="otpCode" class="pixel-input otp-input" inputmode="numeric" pattern="[0-9]{6,8}" maxlength="8" placeholder="······" required>
           <button type="submit" class="btn-big">인증하기 ♥</button>
         </form>
         <div class="otp-wait">
@@ -103,6 +103,7 @@
     </div>
     <nav class="view-tabs">
       <button type="button" class="view-tab active" data-view="mine">🏠 내 기록</button>
+      <button type="button" class="view-tab" data-view="couple">💑 우리</button>
       <button type="button" class="view-tab" data-view="feed">💌 피드</button>
     </nav>
   </header>
@@ -126,6 +127,19 @@
           <span id="recordCount" class="record-count">0개</span>
         </div>
         <div id="recordList" class="record-list"></div>
+      </section>
+    </div>
+
+    <!-- 커플 화면 -->
+    <div id="coupleView" class="hidden">
+      <section>
+        <div class="section-title-bar">
+          <span class="section-title-icon">💑</span>
+          <h2 class="section-title">우리 둘</h2>
+          <span class="section-title-deco">♥ 커플 연동 ♥</span>
+        </div>
+        <div id="couplePanel"></div>
+        <div id="coupleList" class="record-list"></div>
       </section>
     </div>
 

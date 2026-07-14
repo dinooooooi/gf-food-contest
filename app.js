@@ -11,6 +11,9 @@ let sb = null;          // supabase client
 let me = null;          // { id, email }
 let myRecords = [];
 let feedRecords = [];
+let coupleRecords = [];
+let partner = null;     // { id, email } | null
+let myHearts = new Set(); // 내가 하트 누른 record id
 let currentView = 'mine';
 
 /* ───────── 유틸 ───────── */
@@ -185,27 +188,54 @@ async function logout() {
 
 /* ───────── 데이터 ───────── */
 
+const RECORD_COLS = '*, reactions(count), comments(count)';
+
+function socialCounts(r) {
+  r._hearts = r.reactions?.[0]?.count || 0;
+  r._comments = r.comments?.[0]?.count || 0;
+  return r;
+}
+
 async function loadMine() {
-  const { data, error } = await sb.from('records').select('*')
+  const { data, error } = await sb.from('records').select(RECORD_COLS)
     .eq('owner', me.id)
     .order('date', { ascending: false })
     .order('created_at', { ascending: false });
   if (error) { console.error(error); alert('기록을 불러오지 못했어요 (>_<)'); return; }
-  myRecords = data || [];
+  myRecords = (data || []).map(socialCounts);
 }
 
 async function loadFeed() {
-  const { data, error } = await sb.from('records').select('*')
+  const { data, error } = await sb.from('records').select(RECORD_COLS)
     .eq('is_public', true)
     .order('date', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(200);
   if (error) { console.error(error); return; }
-  feedRecords = data || [];
+  feedRecords = (data || []).map(socialCounts);
+}
+
+async function loadCouple() {
+  const { data, error } = await sb.from('couples').select('*')
+    .or(`a.eq.${me.id},b.eq.${me.id}`)
+    .not('b', 'is', null)
+    .maybeSingle();
+  if (error || !data) { partner = null; coupleRecords = []; return; }
+  partner = data.a === me.id ? { id: data.b, email: data.b_email } : { id: data.a, email: data.a_email };
+  const res = await sb.from('records').select(RECORD_COLS)
+    .in('owner', [me.id, partner.id])
+    .order('date', { ascending: false })
+    .order('created_at', { ascending: false });
+  coupleRecords = (res.data || []).map(socialCounts);
+}
+
+async function loadMyHearts() {
+  const { data } = await sb.from('reactions').select('record_id').eq('user_id', me.id);
+  myHearts = new Set((data || []).map((x) => x.record_id));
 }
 
 async function refresh() {
-  await Promise.all([loadMine(), loadFeed()]);
+  await Promise.all([loadMine(), loadFeed(), loadCouple(), loadMyHearts()]);
   render();
 }
 
@@ -224,12 +254,14 @@ function setView(view) {
   currentView = view;
   document.querySelectorAll('.view-tab').forEach((t) => t.classList.toggle('active', t.dataset.view === view));
   $('#mineView').classList.toggle('hidden', view !== 'mine');
+  $('#coupleView').classList.toggle('hidden', view !== 'couple');
   $('#feedView').classList.toggle('hidden', view !== 'feed');
 }
 
 function render() {
   renderBest();
   renderList();
+  renderCouple();
   renderFeed();
 }
 
@@ -280,10 +312,35 @@ function recordCardEl(r, showOwner) {
       </div>
       <div class="record-date">📅 ${fmtDate(r.date)}${showOwner ? ` · <span class="record-owner">${escapeHtml(r.owner_email)}</span>` : ''}</div>
       <div class="record-desc">${escapeHtml(r.descr)}</div>
-      <div class="record-stars">${starHtml(r.rating, '')}</div>
+      <div class="record-foot">
+        <span class="record-stars">${starHtml(r.rating, '')}</span>
+        <span class="record-social">
+          <button type="button" class="heart-btn ${myHearts.has(r.id) ? 'on' : ''}">♥ <b>${r._hearts}</b></button>
+          <span class="cmt-count">💬 ${r._comments}</span>
+        </span>
+      </div>
     </div>`;
+  card.querySelector('.heart-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleHeart(r, card.querySelector('.heart-btn'));
+  });
   card.addEventListener('click', () => openDetail(r));
   return card;
+}
+
+/* 하트 토글 (화면 즉시 반영) */
+async function toggleHeart(r, btn) {
+  const had = myHearts.has(r.id);
+  // 즉시 반영
+  if (had) { myHearts.delete(r.id); r._hearts--; } else { myHearts.add(r.id); r._hearts++; }
+  if (btn) { btn.classList.toggle('on', !had); btn.querySelector('b').textContent = r._hearts; }
+  const { error } = had
+    ? await sb.from('reactions').delete().eq('record_id', r.id).eq('user_id', me.id)
+    : await sb.from('reactions').insert({ record_id: r.id, user_id: me.id });
+  if (error) { // 실패 시 되돌리기
+    if (had) { myHearts.add(r.id); r._hearts++; } else { myHearts.delete(r.id); r._hearts--; }
+    if (btn) { btn.classList.toggle('on', had); btn.querySelector('b').textContent = r._hearts; }
+  }
 }
 
 function renderList() {
@@ -295,6 +352,67 @@ function renderList() {
     return;
   }
   myRecords.forEach((r) => list.appendChild(recordCardEl(r, false)));
+}
+
+function renderCouple() {
+  const panel = $('#couplePanel');
+  const list = $('#coupleList');
+  list.innerHTML = '';
+
+  if (!partner) {
+    panel.innerHTML = `
+      <div class="couple-box">
+        <p class="couple-msg">아직 연동된 상대가 없어요!<br>커플 코드로 서로를 연결해 보세요 💕</p>
+        <button type="button" id="coupleMakeBtn" class="btn-big">💌 내 커플 코드 만들기</button>
+        <div id="coupleCodeShow" class="couple-code hidden"></div>
+        <div class="couple-divider">─ 또는 ─</div>
+        <form id="coupleJoinForm" class="couple-join">
+          <input type="text" id="coupleCodeInput" class="pixel-input" placeholder="상대방 코드 입력 (6자리)" maxlength="6" required>
+          <button type="submit" class="btn-best">연동하기 ♥</button>
+        </form>
+        <p id="coupleError" class="auth-error"></p>
+      </div>`;
+    $('#coupleMakeBtn').addEventListener('click', makeCoupleCode);
+    $('#coupleJoinForm').addEventListener('submit', joinCouple);
+    return;
+  }
+
+  panel.innerHTML = `
+    <div class="couple-box couple-linked">
+      <p class="couple-msg">💑 <b>${escapeHtml(me.email)}</b> ♥ <b>${escapeHtml(partner.email)}</b><br>둘의 기록을 모두 볼 수 있어요! (🔒 나만보기 포함)</p>
+      <button type="button" id="coupleUnlinkBtn" class="btn-tiny">연동 해제</button>
+    </div>`;
+  $('#coupleUnlinkBtn').addEventListener('click', async () => {
+    if (!confirm(`${partner.email} 님과의 연동을 해제할까요?`)) return;
+    const { error } = await sb.rpc('unlink_couple');
+    if (error) { alert('해제에 실패했어요 (>_<)'); return; }
+    refresh();
+  });
+
+  if (!coupleRecords.length) {
+    list.innerHTML = '<div class="record-empty">아직 둘 다 기록이 없어요 (´•̥ ω •̥`)</div>';
+    return;
+  }
+  coupleRecords.forEach((r) => list.appendChild(recordCardEl(r, true)));
+}
+
+async function makeCoupleCode() {
+  $('#coupleError').textContent = '';
+  const { data, error } = await sb.rpc('create_couple_code');
+  if (error) { $('#coupleError').textContent = error.message; return; }
+  const box = $('#coupleCodeShow');
+  box.classList.remove('hidden');
+  box.innerHTML = `내 코드: <b>${escapeHtml(data)}</b><br><span class="couple-code-hint">상대방이 이 코드를 입력하면 연동 완료! (연동되면 자동 반영돼요 — 새로고침해 보세요)</span>`;
+}
+
+async function joinCouple(e) {
+  e.preventDefault();
+  $('#coupleError').textContent = '';
+  const code = $('#coupleCodeInput').value.trim();
+  const { data, error } = await sb.rpc('join_couple', { p_code: code });
+  if (error) { $('#coupleError').textContent = error.message.replace(/^.*?: /, ''); return; }
+  alert(`💑 ${data} 님과 연동됐어요!`);
+  refresh();
 }
 
 function renderFeed() {
@@ -447,7 +565,22 @@ function openDetail(r) {
     </div>
     ${r.descr ? `<div class="detail-desc">${escapeHtml(r.descr)}</div>` : ''}
     <div class="detail-owner">작성: ${escapeHtml(r.owner_email)}${r.best_at ? ' · 👑 BEST' : ''} · ${r.is_public ? '💖 전체공개' : '🔒 나만보기'}</div>
+    <div class="detail-social">
+      <button type="button" class="heart-btn heart-btn-big ${myHearts.has(r.id) ? 'on' : ''}" id="detailHeartBtn">♥ <b>${r._hearts || 0}</b></button>
+    </div>
+    <div class="comments-box">
+      <div class="comments-title">💬 댓글</div>
+      <div id="commentList" class="comment-list"><span class="comment-loading">불러오는 중...</span></div>
+      <form id="commentForm" class="comment-form">
+        <input type="text" id="commentInput" class="pixel-input" placeholder="댓글을 남겨보세요 ♥" maxlength="500" required>
+        <button type="submit" class="btn-best">등록</button>
+      </form>
+    </div>
     ${actions.length ? `<div class="detail-actions">${actions.join('')}</div>` : ''}`;
+
+  $('#detailHeartBtn').addEventListener('click', () => toggleHeart(r, $('#detailHeartBtn')));
+  $('#commentForm').addEventListener('submit', (e) => submitComment(e, r));
+  loadComments(r);
 
   const bestBtn = $('#detailBestBtn');
   if (bestBtn) bestBtn.addEventListener('click', () => toggleBest(r));
@@ -466,6 +599,56 @@ function openDetail(r) {
   $('#detailModal').classList.remove('hidden');
 }
 
+/* ───────── 댓글 ───────── */
+
+async function loadComments(r) {
+  const box = $('#commentList');
+  const { data, error } = await sb.from('comments').select('*')
+    .eq('record_id', r.id)
+    .order('created_at', { ascending: true });
+  if (!box || error) { if (box) box.innerHTML = '<span class="comment-loading">댓글을 불러오지 못했어요</span>'; return; }
+  box.innerHTML = '';
+  if (!data.length) {
+    box.innerHTML = '<span class="comment-loading">첫 댓글을 남겨보세요! ♥</span>';
+    return;
+  }
+  data.forEach((c) => {
+    const canDel = c.author === me.id || r.owner === me.id; // 댓글 작성자 또는 글쓴이
+    const el = document.createElement('div');
+    el.className = 'comment-item';
+    el.innerHTML = `
+      <div class="comment-head">
+        <span class="comment-author">${escapeHtml(c.author_email)}</span>
+        <span class="comment-date">${fmtDate(c.created_at)}</span>
+        ${canDel ? '<button type="button" class="comment-del">✕</button>' : ''}
+      </div>
+      <div class="comment-content">${escapeHtml(c.content)}</div>`;
+    const del = el.querySelector('.comment-del');
+    if (del) del.addEventListener('click', async () => {
+      if (!confirm('이 댓글을 삭제할까요?')) return;
+      const { error: e2 } = await sb.from('comments').delete().eq('id', c.id);
+      if (e2) { alert('삭제에 실패했어요 (>_<)'); return; }
+      r._comments = Math.max(0, (r._comments || 1) - 1);
+      loadComments(r);
+    });
+    box.appendChild(el);
+  });
+}
+
+async function submitComment(e, r) {
+  e.preventDefault();
+  const input = $('#commentInput');
+  const content = input.value.trim();
+  if (!content) return;
+  const { error } = await sb.from('comments').insert({
+    record_id: r.id, author: me.id, author_email: me.email, content,
+  });
+  if (error) { alert('댓글 등록에 실패했어요 (>_<)'); return; }
+  input.value = '';
+  r._comments = (r._comments || 0) + 1;
+  loadComments(r);
+}
+
 async function toggleBest(r) {
   if (!r.best_at && myBest().length >= BEST_LIMIT) {
     alert(`BEST는 ${BEST_LIMIT}개까지만! 먼저 하나를 해제해 주세요 👑`);
@@ -481,6 +664,7 @@ async function toggleBest(r) {
 
 function closeModal(id) {
   $('#' + id).classList.add('hidden');
+  if (id === 'detailModal' && me) render(); // 모달에서 바뀐 하트/댓글 수를 목록에 반영
 }
 
 /* ───────── 초기화 ───────── */
@@ -526,7 +710,7 @@ async function init() {
     b.addEventListener('click', () => closeModal(b.dataset.close));
   });
   document.querySelectorAll('.modal-overlay').forEach((ov) => {
-    ov.addEventListener('mousedown', (e) => { if (e.target === ov) ov.classList.add('hidden'); });
+    ov.addEventListener('mousedown', (e) => { if (e.target === ov) closeModal(ov.id); });
   });
 
   const { data: { session } } = await sb.auth.getSession();
